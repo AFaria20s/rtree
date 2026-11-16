@@ -4,6 +4,17 @@ use std::io::{self, Write};
 pub fn write_tree<W: Write>(writer: &mut W, tree: &Tree, options: &TreeOptions) -> io::Result<()> {
     writeln!(writer, "{}", label(&tree.root, options))?;
     write_children(writer, &tree.root, "", options)?;
+    if options.show_summary {
+        let summary = summary(&tree.root);
+        writeln!(
+            writer,
+            "\n{} {}, {} {}",
+            summary.directories,
+            pluralize(summary.directories, "directory", "directories"),
+            summary.files,
+            pluralize(summary.files, "file", "files"),
+        )?;
+    }
     if !options.quiet {
         for warning in &tree.warnings {
             writeln!(writer, "warning: {warning}")?;
@@ -11,6 +22,32 @@ pub fn write_tree<W: Write>(writer: &mut W, tree: &Tree, options: &TreeOptions) 
     }
     Ok(())
 }
+
+#[derive(Default)]
+struct Summary {
+    directories: usize,
+    files: usize,
+}
+
+fn summary(node: &Node) -> Summary {
+    let mut result = Summary::default();
+    match node.kind {
+        NodeKind::Directory => result.directories += 1,
+        NodeKind::File => result.files += 1,
+        NodeKind::Symlink | NodeKind::Other => {}
+    }
+    for child in &node.children {
+        let child_summary = summary(child);
+        result.directories += child_summary.directories;
+        result.files += child_summary.files;
+    }
+    result
+}
+
+fn pluralize<'a>(count: usize, singular: &'a str, plural: &'a str) -> &'a str {
+    if count == 1 { singular } else { plural }
+}
+
 fn write_children<W: Write>(
     writer: &mut W,
     node: &Node,
@@ -108,5 +145,38 @@ mod tests {
         )
         .unwrap();
         assert_eq!(String::from_utf8(output).unwrap(), "root/\n`- child/\n");
+    }
+
+    #[test]
+    fn summary_counts_displayed_directories_and_files() {
+        let tree = Tree {
+            root: node(
+                "root",
+                NodeKind::Directory,
+                vec![
+                    node("file", NodeKind::File, vec![]),
+                    node(
+                        "nested",
+                        NodeKind::Directory,
+                        vec![node("other", NodeKind::File, vec![])],
+                    ),
+                ],
+            ),
+            warnings: vec![],
+        };
+        let mut output = Vec::new();
+        tree.write_to(
+            &mut output,
+            &TreeOptions {
+                show_summary: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(
+            String::from_utf8(output)
+                .unwrap()
+                .ends_with("\n2 directories, 2 files\n")
+        );
     }
 }

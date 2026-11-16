@@ -37,6 +37,7 @@ rtree [OPTIONS] [PATH]
 | `--sort <name\|modified\|none>` | Choose sibling ordering (default: `name`). |
 | `-r, --reverse` | Reverse the selected ordering. |
 | `--ascii` | Use portable ASCII connector characters. |
+| `-s, --summary` | Print totals for displayed directories and files. |
 | `-q, --quiet` | Do not print non-fatal filesystem warnings. |
 
 Examples:
@@ -50,6 +51,9 @@ rtree --no-count --sort modified .
 
 # CI-friendly output without Unicode
 rtree --ascii -d -I target -I .git
+
+# Show totals after a filtered listing
+rtree --summary --no-count src
 ```
 
 ## Behavior and design
@@ -59,6 +63,7 @@ rtree --ascii -d -I target -I .git
 - Hidden entries are excluded unless `--all` is given.
 - Symlinks are displayed but not followed by default, preventing accidental cycles.
 - A path that cannot be read becomes a warning, so the rest of the tree remains useful.
+- `--summary` totals nodes actually displayed, including the root when applicable.
 - The traversal and renderer are exposed through the `rtree` library crate for embedding.
 
 ## Development
