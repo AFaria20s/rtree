@@ -45,6 +45,7 @@ pub struct TreeOptions {
     pub sort_by: SortBy,
     pub reverse: bool,
     pub ascii: bool,
+    pub show_summary: bool,
     pub quiet: bool,
 }
 
@@ -61,6 +62,7 @@ impl Default for TreeOptions {
             sort_by: SortBy::Name,
             reverse: false,
             ascii: false,
+            show_summary: false,
             quiet: false,
         }
     }

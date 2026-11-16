@@ -76,3 +76,18 @@ fn reverse_sort_orders_siblings_descending() {
         .success()
         .stdout(predicate::str::is_match("(?s)zulu.*alpha").unwrap());
 }
+
+#[test]
+fn summary_reports_displayed_directory_and_file_totals() {
+    let dir = tempdir().unwrap();
+    fs::create_dir(dir.path().join("nested")).unwrap();
+    fs::write(dir.path().join("nested").join("child.txt"), "x").unwrap();
+    fs::write(dir.path().join("root.txt"), "x").unwrap();
+    Command::cargo_bin("rtree")
+        .unwrap()
+        .arg("--summary")
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("2 directories, 2 files"));
+}

@@ -36,6 +36,9 @@ pub struct Cli {
     /// Use ASCII tree characters (useful for plain terminals)
     #[arg(long)]
     pub ascii: bool,
+    /// Print a footer with the total directories and files displayed
+    #[arg(short = 's', long)]
+    pub summary: bool,
     /// Suppress recoverable filesystem warnings
     #[arg(short = 'q', long)]
     pub quiet: bool,
@@ -65,6 +68,7 @@ impl From<Cli> for TreeOptions {
             },
             reverse: value.reverse,
             ascii: value.ascii,
+            show_summary: value.summary,
             quiet: value.quiet,
         }
     }
