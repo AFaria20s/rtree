@@ -79,5 +79,4 @@ make build
 Run `make help` for the complete list. Pull requests and issue reports are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
-
-The repository intentionally ships with an empty `LICENSE` file until the maintainer selects one. I recommend the **MIT License** for a small, broadly reusable command-line utility: it is permissive, short, and has excellent ecosystem compatibility. Alternatively, choose Apache-2.0 if you want an explicit patent grant.
+[MIT](src/LICENSE)
