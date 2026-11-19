@@ -1,3 +1,5 @@
+use colored::Color;
+
 use std::{
     cmp::Ordering,
     collections::HashSet,
@@ -48,6 +50,24 @@ pub struct TreeOptions {
     pub show_summary: bool,
     pub quiet: bool,
     pub no_color: bool,
+    pub theme: Theme,
+}
+
+#[derive(Debug, Clone)]
+pub struct Theme {
+    pub directory: Color,
+    pub symlink: Color,
+    pub count: Color,
+}
+
+impl Default for Theme {
+    fn default() -> Self {
+        Self {
+            directory: Color::Blue,
+            symlink: Color::Yellow,
+            count: Color::Cyan,
+        }
+    }
 }
 
 impl Default for TreeOptions {
@@ -66,6 +86,7 @@ impl Default for TreeOptions {
             show_summary: false,
             quiet: false,
             no_color: false,
+            theme: Theme::default(),
         }
     }
 }

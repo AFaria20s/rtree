@@ -84,10 +84,12 @@ fn paint(text: &str, options: &TreeOptions, style: impl FnOnce(&str) -> ColoredS
 fn label(node: &Node, options: &TreeOptions) -> String {
     match node.kind {
         NodeKind::Directory => {
-            let name = paint(&format!("{}/", node.name), options, |s| s.blue().bold());
+            let name = paint(&format!("{}/", node.name), options, |s| {
+                s.color(options.theme.directory).bold()
+            });
             if options.show_counts {
                 let count = paint(&format!("[{}]", node.child_count), options, |s| {
-                    s.cyan().bold()
+                    s.color(options.theme.count).bold()
                 });
                 format!("{count} {name}")
             } else {
@@ -95,7 +97,9 @@ fn label(node: &Node, options: &TreeOptions) -> String {
             }
         }
         NodeKind::Symlink => {
-            let name = paint(&format!("{}@", node.name), options, |s| s.yellow());
+            let name = paint(&format!("{}@", node.name), options, |s| {
+                s.color(options.theme.symlink)
+            });
             match std::fs::read_link(&node.path) {
                 Ok(target) => format!("{name} -> {}", target.display()),
                 Err(_) => name,

@@ -1,6 +1,9 @@
 use clap::{Parser, ValueEnum};
 
-use crate::{TreeOptions, model::SortBy};
+use crate::{
+    TreeOptions,
+    model::{SortBy, Theme},
+};
 
 /// Print a visual directory tree.
 #[derive(Debug, Clone, Parser)]
@@ -73,6 +76,7 @@ impl From<Cli> for TreeOptions {
             show_summary: value.summary,
             quiet: value.quiet,
             no_color: value.no_color,
+            theme: Theme::default(),
         }
     }
 }
