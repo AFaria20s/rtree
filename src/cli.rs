@@ -76,7 +76,7 @@ impl From<Cli> for TreeOptions {
             show_summary: value.summary,
             quiet: value.quiet,
             no_color: value.no_color,
-            theme: Theme::default(),
+            theme: Theme::from_env(),
         }
     }
 }

@@ -70,6 +70,42 @@ impl Default for Theme {
     }
 }
 
+impl Theme {
+    pub fn from_env() -> Self {
+        let mut theme = Self::default();
+        if let Ok(spec) = std::env::var("RTREE_COLORS") {
+            theme.apply(&spec);
+        }
+        theme
+    }
+
+    /// Parses specs like "dir=magenta,count=bright black"
+    pub fn apply(&mut self, spec: &str) {
+        for pair in spec.split(',') {
+            let Some((key, value)) = pair.split_once('=') else {
+                continue;
+            };
+            let Ok(color) = value.trim().parse::<Color>() else {
+                continue;
+            };
+            match key.trim() {
+                "dir" => self.directory = color,
+                "link" => self.symlink = color,
+                "count" => self.count = color,
+                _ => {}
+            }
+        }
+    }
+}
+
+#[test]
+fn apply_overrides_only_given_colors() {
+    let mut theme = Theme::default();
+    theme.apply("dir=red, bogus=blue, count=nonsense");
+    assert_eq!(theme.directory, Color::Red);
+    assert_eq!(theme.count, Color::Cyan);
+}
+
 impl Default for TreeOptions {
     fn default() -> Self {
         Self {

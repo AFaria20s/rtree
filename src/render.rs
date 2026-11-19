@@ -109,6 +109,7 @@ fn label(node: &Node, options: &TreeOptions) -> String {
         _ => node.name.clone(),
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,7 +143,14 @@ mod tests {
             warnings: vec![],
         };
         let mut output = Vec::new();
-        tree.write_to(&mut output, &TreeOptions::default()).unwrap();
+        tree.write_to(
+            &mut output,
+            &TreeOptions {
+                no_color: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
         assert_eq!(
             String::from_utf8(output).unwrap(),
             "[2] root/\n├── a\n└── [1] dir/\n    └── b\n"
@@ -164,6 +172,7 @@ mod tests {
             &TreeOptions {
                 ascii: true,
                 show_counts: false,
+                no_color: true,
                 ..Default::default()
             },
         )
