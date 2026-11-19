@@ -47,6 +47,7 @@ pub struct TreeOptions {
     pub ascii: bool,
     pub show_summary: bool,
     pub quiet: bool,
+    pub no_color: bool,
 }
 
 impl Default for TreeOptions {
@@ -64,6 +65,7 @@ impl Default for TreeOptions {
             ascii: false,
             show_summary: false,
             quiet: false,
+            no_color: false,
         }
     }
 }

@@ -1,4 +1,5 @@
 use crate::{Node, NodeKind, Tree, TreeOptions};
+use colored::{ColoredString, Colorize};
 use std::io::{self, Write};
 
 pub fn write_tree<W: Write>(writer: &mut W, tree: &Tree, options: &TreeOptions) -> io::Result<()> {
@@ -72,16 +73,35 @@ fn write_children<W: Write>(
     }
     Ok(())
 }
+fn paint(text: &str, options: &TreeOptions, style: impl FnOnce(&str) -> ColoredString) -> String {
+    if options.no_color {
+        text.to_string()
+    } else {
+        style(text).to_string()
+    }
+}
+
 fn label(node: &Node, options: &TreeOptions) -> String {
     match node.kind {
         NodeKind::Directory => {
+            let name = paint(&format!("{}/", node.name), options, |s| s.blue().bold());
             if options.show_counts {
-                format!("[{}] {}/", node.child_count, node.name)
+                let count = paint(&format!("[{}]", node.child_count), options, |s| {
+                    s.cyan().bold()
+                });
+                format!("{count} {name}")
             } else {
-                format!("{}/", node.name)
+                name
             }
         }
-        NodeKind::Symlink => format!("{}@", node.name),
+        NodeKind::Symlink => {
+            let name = paint(&format!("{}@", node.name), options, |s| s.yellow());
+            match std::fs::read_link(&node.path) {
+                Ok(target) => format!("{name} -> {}", target.display()),
+                Err(_) => name,
+            }
+        }
+
         _ => node.name.clone(),
     }
 }

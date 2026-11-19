@@ -79,4 +79,4 @@ make build
 Run `make help` for the complete list. Pull requests and issue reports are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
-[MIT](src/LICENSE)
+[MIT License](src/LICENSE)

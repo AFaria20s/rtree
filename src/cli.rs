@@ -42,6 +42,8 @@ pub struct Cli {
     /// Suppress recoverable filesystem warnings
     #[arg(short = 'q', long)]
     pub quiet: bool,
+    #[arg(short = 'c', long)]
+    pub no_color: bool,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -70,6 +72,7 @@ impl From<Cli> for TreeOptions {
             ascii: value.ascii,
             show_summary: value.summary,
             quiet: value.quiet,
+            no_color: value.no_color,
         }
     }
 }
