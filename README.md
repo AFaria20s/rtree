@@ -1,6 +1,6 @@
 # rtree
 
-`rtree` is a fast, pleasant directory-tree command written in Rust. Directories show their number of visible direct children by default, making large projects easier to scan. Output is colored when printed to a terminal.
+`rtree` is like `tree`, but it shows how many items are in each directory. It's a fast, colorful directory-tree command written in Rust, and the child counts make large projects easier to scan.
 
 ```text
 $ rtree examples
@@ -15,6 +15,18 @@ $ rtree examples
 Prerequisite: [the Rust toolchain](https://rustup.rs/).
 
 ```sh
+cargo install --locked --git https://github.com/AFaria20s/rtree --tag v0.1.0
+```
+
+This builds the binary and puts `rtree` in `~/.cargo/bin` (`%USERPROFILE%\.cargo\bin` on Windows), so it works from any directory as long as that folder is on your `PATH`.
+
+To update, rerun the command with a newer tag and add `--force`. To remove it, run `cargo uninstall rtree`.
+
+### From a local clone
+
+```sh
+git clone https://github.com/AFaria20s/rtree
+cd rtree
 cargo install --path .
 # or, for development
 cargo run -- --help
@@ -81,6 +93,10 @@ export RTREE_COLORS="dir=magenta,link=green,count=bright black"
 
 Accepted values are the standard terminal color names (`red`, `green`, `blue`, `magenta`, `cyan`, `white`, ...) and their `bright` variants written with a space, such as `bright blue`. Unknown keys and invalid colors are ignored.
 
+## Platform notes
+
+`rtree` is tested in CI on Linux, macOS and Windows. On older Windows consoles, box-drawing characters or colors may not render correctly; use `--ascii` and `--no-color` if that happens.
+
 ## Behavior and design
 
 - Children are sorted case-insensitively by name by default.
@@ -114,4 +130,5 @@ make env-reset          # remove them again
 Run `make help` for the complete list. Pull requests and issue reports are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
-[MIT License](src/LICENSE)
+
+[MIT License](LICENSE)
