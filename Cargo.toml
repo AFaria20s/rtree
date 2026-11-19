@@ -1,15 +1,17 @@
 [package]
 name = "rtree"
 version = "0.1.0"
-description = "A fast, configurable directory tree viewer"
-license-file = "LICENSE"
-repository = "https://github.com/your-username/rtree"
+description = "A fast, configurable directory tree viewer that shows child counts"
+license = "MIT"
+repository = "https://github.com/AFaria20s/rtree"
+readme = "README.md"
 keywords = ["cli", "tree", "filesystem", "directory"]
 categories = ["command-line-utilities", "filesystem"]
 edition = "2024"
+rust-version = "1.85"
 
 [dependencies]
-clap = { version = "4.5", features = ["derive", "cargo"] }
+clap = { version = "4.5", features = ["derive"] }
 thiserror = "2.0"
 colored = "3"
 
