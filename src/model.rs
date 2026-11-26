@@ -17,6 +17,12 @@ pub enum NodeKind {
     Other,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Cut {
+    Cycle,
+    DepthLimit,
+}
+
 #[derive(Debug, Clone)]
 pub struct Node {
     pub name: String,
@@ -26,6 +32,7 @@ pub struct Node {
     pub children: Vec<Node>,
     pub is_symlink: bool,
     pub link_target: Option<PathBuf>,
+    pub cut: Option<Cut>,
     pub(crate) modified: Option<SystemTime>,
 }
 
@@ -44,6 +51,7 @@ pub struct TreeOptions {
     pub show_counts: bool,
     pub directories_only: bool,
     pub follow_links: bool,
+    pub max_follow_depth: Option<usize>,
     pub ignored: Vec<String>,
     pub sort_by: SortBy,
     pub reverse: bool,
@@ -116,6 +124,7 @@ impl Default for TreeOptions {
             show_counts: true,
             directories_only: false,
             follow_links: false,
+            max_follow_depth: None,
             ignored: vec![],
             sort_by: SortBy::Name,
             reverse: false,
@@ -141,7 +150,7 @@ impl Tree {
         }
         let mut warnings = Vec::new();
         let mut ancestors = Vec::new();
-        let root = build_node(&path, &options, 0, &mut ancestors, &mut warnings);
+        let root = build_node(&path, &options, 0, 0, &mut ancestors, &mut warnings);
         Ok(Self { root, warnings })
     }
 
@@ -160,10 +169,10 @@ fn build_node(
     path: &Path,
     options: &TreeOptions,
     depth: usize,
+    follow_depth: usize,
     ancestors: &mut Vec<PathBuf>,
     warnings: &mut Vec<String>,
 ) -> Node {
-    // lstat first: this is the only call that still tells the truth about the entry.
     let link_meta = fs::symlink_metadata(path);
     let is_symlink = matches!(&link_meta, Ok(m) if m.file_type().is_symlink());
     let link_target = if is_symlink {
@@ -172,7 +181,6 @@ fn build_node(
         None
     };
 
-    // Resolve only when asked. A broken link under -l falls back to the lstat result.
     let meta = if options.follow_links {
         fs::metadata(path).or(link_meta)
     } else {
@@ -193,23 +201,49 @@ fn build_node(
         modified: meta.ok().and_then(|m| m.modified().ok()),
         is_symlink,
         link_target,
+        cut: None,
     };
 
     if node.kind != NodeKind::Directory {
         return node;
     }
 
-    // Count without descending when depth is exhausted.
     if !options.max_depth.is_none_or(|max| depth < max) {
         node.child_count = count_children(path, options, warnings);
         return node;
     }
 
-    // Loop guard: a symlink to an ancestor would otherwise recurse forever.
     let canonical = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    if ancestors.contains(&canonical) {
-        warnings.push(format!("{}: symlink loop, not descending", path.display()));
-        return node;
+    if is_symlink {
+        if let Some(position) = ancestors.iter().position(|entry| *entry == canonical) {
+            let target = node
+                .link_target
+                .as_deref()
+                .map(Path::display)
+                .map(|d| d.to_string())
+                .unwrap_or_else(|| ancestors[position].display().to_string());
+            warnings.push(format!(
+                "{}: cycle, links back to {}, not descending",
+                path.display(),
+                target
+            ));
+            node.cut = Some(Cut::Cycle);
+            node.child_count = count_children(path, options, warnings);
+            return node;
+        }
+        if !options
+            .max_follow_depth
+            .is_none_or(|max| follow_depth < max)
+        {
+            warnings.push(format!(
+                "{}: follow depth limit ({}) reached, not descending",
+                path.display(),
+                options.max_follow_depth.unwrap_or_default()
+            ));
+            node.cut = Some(Cut::DepthLimit);
+            node.child_count = count_children(path, options, warnings);
+            return node;
+        }
     }
 
     ancestors.push(canonical);
@@ -226,8 +260,18 @@ fn build_node(
     };
     node.child_count = entries.len();
     for entry in &entries {
-        node.children
-            .push(build_node(entry, options, depth + 1, ancestors, warnings));
+        node.children.push(build_node(
+            entry,
+            options,
+            depth + 1,
+            if is_symlink {
+                follow_depth + 1
+            } else {
+                follow_depth
+            },
+            ancestors,
+            warnings,
+        ));
     }
     ancestors.pop();
     sort_children(&mut node.children, options);
@@ -253,8 +297,6 @@ fn include(path: &Path, options: &TreeOptions) -> bool {
         && !options.ignored.iter().any(|pattern| name.contains(pattern))
 }
 
-/// `include` plus the `--dirs-only` filter, resolving the entry when `-l` is on so a
-/// symlink to a directory counts as a directory.
 fn included(path: &Path, options: &TreeOptions) -> bool {
     if !include(path, options) {
         return false;

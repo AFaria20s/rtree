@@ -27,6 +27,9 @@ pub struct Cli {
     /// Follow symbolic links while traversing
     #[arg(short = 'l', long)]
     pub follow_links: bool,
+    /// Stop following links after N hops (requires -l)
+    #[arg(long, value_name = "N")]
+    pub follow_depth: Option<usize>,
     /// Exclude paths whose file name contains this text; may be repeated
     #[arg(short = 'I', long = "ignore", value_name = "PATTERN")]
     pub ignore: Vec<String>,
@@ -65,6 +68,7 @@ impl From<Cli> for TreeOptions {
             show_counts: !value.no_count,
             directories_only: value.dirs_only,
             follow_links: value.follow_links,
+            max_follow_depth: value.follow_depth,
             ignored: value.ignore,
             sort_by: match value.sort {
                 SortArg::Name => SortBy::Name,
