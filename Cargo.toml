@@ -1,6 +1,6 @@
 [package]
 name = "rtree"
-version = "0.1.0"
+version = "0.1.2"
 description = "A fast, configurable directory tree viewer that shows child counts"
 license = "MIT"
 repository = "https://github.com/AFaria20s/rtree"
