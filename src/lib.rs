@@ -10,4 +10,4 @@ mod render;
 
 pub use cli::Cli;
 pub use error::Error;
-pub use model::{Node, NodeKind, SortBy, Tree, TreeOptions};
+pub use model::{Cut, Node, NodeKind, SortBy, Tree, TreeOptions};

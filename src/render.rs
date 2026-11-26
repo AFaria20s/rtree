@@ -1,4 +1,4 @@
-use crate::{Node, NodeKind, Tree, TreeOptions};
+use crate::{Cut, Node, NodeKind, Tree, TreeOptions};
 use colored::{ColoredString, Colorize};
 use std::io::{self, Write};
 
@@ -73,6 +73,7 @@ fn write_children<W: Write>(
     }
     Ok(())
 }
+
 fn paint(text: &str, options: &TreeOptions, style: impl FnOnce(&str) -> ColoredString) -> String {
     if options.no_color {
         text.to_string()
@@ -86,9 +87,15 @@ fn label(node: &Node, options: &TreeOptions) -> String {
         let name = paint(&format!("{}@", node.name), options, |s| {
             s.color(options.theme.symlink)
         });
-        return match &node.link_target {
-            Some(target) => format!("{name} -> {}", target.display()),
-            None => name,
+        return match (&node.link_target, node.cut) {
+            (Some(target), Some(Cut::Cycle)) => {
+                format!("{name} -> {} (cycle)", target.display())
+            }
+            (Some(target), Some(Cut::DepthLimit)) => {
+                format!("{name} -> {} (depth limit)", target.display())
+            }
+            (Some(target), None) => format!("{name} -> {}", target.display()),
+            (None, _) => name,
         };
     }
 
@@ -125,6 +132,7 @@ mod tests {
             is_symlink: false,
             link_target: None,
             modified: None,
+            cut: None,
         }
     }
     #[test]
