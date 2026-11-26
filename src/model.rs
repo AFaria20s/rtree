@@ -2,7 +2,6 @@ use colored::Color;
 
 use std::{
     cmp::Ordering,
-    collections::HashSet,
     fs, io,
     path::{Path, PathBuf},
     time::SystemTime,
@@ -201,7 +200,7 @@ fn build_node(
     }
 
     // Count without descending when depth is exhausted.
-    if !options.max_depth.map_or(true, |max| depth < max) {
+    if !options.max_depth.is_none_or(|max| depth < max) {
         node.child_count = count_children(path, options, warnings);
         return node;
     }
