@@ -82,6 +82,16 @@ fn paint(text: &str, options: &TreeOptions, style: impl FnOnce(&str) -> ColoredS
 }
 
 fn label(node: &Node, options: &TreeOptions) -> String {
+    if node.is_symlink {
+        let name = paint(&format!("{}@", node.name), options, |s| {
+            s.color(options.theme.symlink)
+        });
+        return match &node.link_target {
+            Some(target) => format!("{name} -> {}", target.display()),
+            None => name,
+        };
+    }
+
     match node.kind {
         NodeKind::Directory => {
             let name = paint(&format!("{}/", node.name), options, |s| {
@@ -96,16 +106,6 @@ fn label(node: &Node, options: &TreeOptions) -> String {
                 name
             }
         }
-        NodeKind::Symlink => {
-            let name = paint(&format!("{}@", node.name), options, |s| {
-                s.color(options.theme.symlink)
-            });
-            match std::fs::read_link(&node.path) {
-                Ok(target) => format!("{name} -> {}", target.display()),
-                Err(_) => name,
-            }
-        }
-
         _ => node.name.clone(),
     }
 }
@@ -122,8 +122,39 @@ mod tests {
             kind,
             child_count: children.len(),
             children,
+            is_symlink: false,
+            link_target: None,
             modified: None,
         }
+    }
+    #[test]
+    fn followed_symlink_keeps_marker_and_target() {
+        let mut link = node(
+            "dirlink",
+            NodeKind::Directory,
+            vec![node("x", NodeKind::File, vec![])],
+        );
+        link.is_symlink = true;
+        link.link_target = Some(PathBuf::from("real"));
+
+        let tree = Tree {
+            root: node("root", NodeKind::Directory, vec![link]),
+            warnings: vec![],
+        };
+        let mut output = Vec::new();
+        tree.write_to(
+            &mut output,
+            &TreeOptions {
+                no_color: true,
+                show_counts: false,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            String::from_utf8(output).unwrap(),
+            "root/\n└── dirlink@ -> real\n    └── x\n"
+        );
     }
     #[test]
     fn renders_counts_and_connectors() {
