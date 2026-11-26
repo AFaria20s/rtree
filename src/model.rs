@@ -25,6 +25,8 @@ pub struct Node {
     pub kind: NodeKind,
     pub child_count: usize,
     pub children: Vec<Node>,
+    pub is_symlink: bool,
+    pub link_target: Option<PathBuf>,
     pub(crate) modified: Option<SystemTime>,
 }
 
@@ -135,12 +137,12 @@ pub struct Tree {
 
 impl Tree {
     pub fn build(path: PathBuf, options: TreeOptions) -> Result<Self, Error> {
-        if !path.exists() {
+        if !path.exists() && fs::symlink_metadata(&path).is_err() {
             return Err(Error::MissingPath(path));
         }
         let mut warnings = Vec::new();
-        let mut visited = HashSet::new();
-        let root = build_node(&path, 0, &options, &mut warnings, &mut visited)?;
+        let mut ancestors = Vec::new();
+        let root = build_node(&path, &options, 0, &mut ancestors, &mut warnings);
         Ok(Self { root, warnings })
     }
 
@@ -149,98 +151,95 @@ impl Tree {
     }
 }
 
+fn entry_name(path: &Path) -> String {
+    path.file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| path.display().to_string())
+}
+
 fn build_node(
     path: &Path,
-    depth: usize,
     options: &TreeOptions,
+    depth: usize,
+    ancestors: &mut Vec<PathBuf>,
     warnings: &mut Vec<String>,
-    visited: &mut HashSet<PathBuf>,
-) -> Result<Node, Error> {
-    let metadata = if options.follow_links {
-        fs::metadata(path)
+) -> Node {
+    // lstat first: this is the only call that still tells the truth about the entry.
+    let link_meta = fs::symlink_metadata(path);
+    let is_symlink = matches!(&link_meta, Ok(m) if m.file_type().is_symlink());
+    let link_target = if is_symlink {
+        fs::read_link(path).ok()
     } else {
-        fs::symlink_metadata(path)
-    }
-    .map_err(|source| Error::Read {
-        path: path.to_path_buf(),
-        source,
-    })?;
-    let kind = if metadata.file_type().is_symlink() {
-        NodeKind::Symlink
-    } else if metadata.is_dir() {
-        NodeKind::Directory
-    } else if metadata.is_file() {
-        NodeKind::File
-    } else {
-        NodeKind::Other
+        None
     };
-    let name = path
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| path.display().to_string());
-    let mut children = Vec::new();
-    let cycle = options.follow_links
-        && kind == NodeKind::Directory
-        && fs::canonicalize(path)
-            .ok()
-            .is_some_and(|canonical| !visited.insert(canonical));
-    if cycle {
-        warnings.push(format!("skipping cyclic link at {}", path.display()));
+
+    // Resolve only when asked. A broken link under -l falls back to the lstat result.
+    let meta = if options.follow_links {
+        fs::metadata(path).or(link_meta)
+    } else {
+        link_meta
+    };
+
+    let mut node = Node {
+        name: entry_name(path),
+        path: path.to_path_buf(),
+        kind: match &meta {
+            Ok(m) if m.is_dir() => NodeKind::Directory,
+            Ok(m) if m.is_file() => NodeKind::File,
+            _ if is_symlink => NodeKind::Symlink,
+            _ => NodeKind::Other,
+        },
+        child_count: 0,
+        children: Vec::new(),
+        modified: meta.ok().and_then(|m| m.modified().ok()),
+        is_symlink,
+        link_target,
+    };
+
+    if node.kind != NodeKind::Directory {
+        return node;
     }
-    let can_descend = kind == NodeKind::Directory
-        && !cycle
-        && options.max_depth.is_none_or(|limit| depth < limit);
-    if can_descend {
-        match fs::read_dir(path) {
-            Ok(entries) => {
-                for entry in entries {
-                    match entry {
-                        Ok(entry) if include(&entry.path(), options) => {
-                            match build_node(&entry.path(), depth + 1, options, warnings, visited) {
-                                Ok(child)
-                                    if !options.directories_only
-                                        || child.kind == NodeKind::Directory =>
-                                {
-                                    children.push(child)
-                                }
-                                Ok(_) => {}
-                                Err(error) => warnings.push(error.to_string()),
-                            }
-                        }
-                        Ok(_) => {}
-                        Err(error) => warnings
-                            .push(format!("cannot read entry in {}: {error}", path.display())),
-                    }
-                }
-            }
-            Err(error) => warnings.push(format!("cannot read {}: {error}", path.display())),
+
+    // Count without descending when depth is exhausted.
+    if !options.max_depth.map_or(true, |max| depth < max) {
+        node.child_count = count_children(path, options, warnings);
+        return node;
+    }
+
+    // Loop guard: a symlink to an ancestor would otherwise recurse forever.
+    let canonical = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    if ancestors.contains(&canonical) {
+        warnings.push(format!("{}: symlink loop, not descending", path.display()));
+        return node;
+    }
+
+    ancestors.push(canonical);
+    let entries: Vec<PathBuf> = match fs::read_dir(path) {
+        Ok(rd) => rd
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .filter(|entry| included(entry, options))
+            .collect(),
+        Err(error) => {
+            warnings.push(format!("cannot read {}: {error}", path.display()));
+            Vec::new()
         }
-    }
-    sort_children(&mut children, options);
-    let child_count = if options.show_counts && kind == NodeKind::Directory && !can_descend {
-        count_children(path, options, warnings)
-    } else {
-        children.len()
     };
-    Ok(Node {
-        name,
-        path: path.to_path_buf(),
-        kind,
-        child_count,
-        children,
-        modified: metadata.modified().ok(),
-    })
+    node.child_count = entries.len();
+    for entry in &entries {
+        node.children
+            .push(build_node(entry, options, depth + 1, ancestors, warnings));
+    }
+    ancestors.pop();
+    sort_children(&mut node.children, options);
+    node
 }
 
 fn count_children(path: &Path, options: &TreeOptions, warnings: &mut Vec<String>) -> usize {
     match fs::read_dir(path) {
         Ok(entries) => entries
             .filter_map(Result::ok)
-            .filter(|entry| {
-                include(&entry.path(), options)
-                    && (!options.directories_only
-                        || entry.file_type().is_ok_and(|kind| kind.is_dir()))
-            })
+            .filter(|entry| included(&entry.path(), options))
             .count(),
         Err(error) => {
             warnings.push(format!("cannot read {}: {error}", path.display()));
@@ -253,6 +252,23 @@ fn include(path: &Path, options: &TreeOptions) -> bool {
     let name = path.file_name().unwrap_or_default().to_string_lossy();
     (options.show_hidden || !name.starts_with('.'))
         && !options.ignored.iter().any(|pattern| name.contains(pattern))
+}
+
+/// `include` plus the `--dirs-only` filter, resolving the entry when `-l` is on so a
+/// symlink to a directory counts as a directory.
+fn included(path: &Path, options: &TreeOptions) -> bool {
+    if !include(path, options) {
+        return false;
+    }
+    if !options.directories_only {
+        return true;
+    }
+    let meta = if options.follow_links {
+        fs::metadata(path)
+    } else {
+        fs::symlink_metadata(path)
+    };
+    meta.map(|m| m.is_dir()).unwrap_or(false)
 }
 
 fn sort_children(children: &mut [Node], options: &TreeOptions) {
